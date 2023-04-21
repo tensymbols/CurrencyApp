@@ -1,18 +1,18 @@
-package valutes
+package Currency
 
-type MinMaxValute struct {
+type MinMaxCurrency struct {
 	Value float64
 	Date  string
 }
-type AvgValute struct {
+type AvgCurrency struct {
 	Value    float64
 	Sum      float64
 	Quantity int
 }
 
-type ValCurs struct {
-	Date   string `xml:"Date,attr"`
-	Valute []struct {
+type CurrRate struct {
+	Date       string `xml:"Date,attr"`
+	Currencies []struct {
 		Name  string `xml:"Name"`
 		Value string `xml:"Value"`
 	} `xml:"Valute"`

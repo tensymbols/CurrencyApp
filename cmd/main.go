@@ -1,9 +1,9 @@
 package main
 
 import (
-	"ValuteApp/internal/app"
-	"ValuteApp/internal/date"
-	"ValuteApp/internal/ports"
+	"CurrencyCB/internal/app"
+	"CurrencyCB/internal/date"
+	"CurrencyCB/internal/ports"
 	"flag"
 	"fmt"
 	"sync"
@@ -18,7 +18,7 @@ func main() {
 	flag.IntVar(&days, "days", 90, "number of days")
 	flag.Parse()
 
-	valuteApp := app.NewValuteApp()
+	CurrencyApp := app.NewCurrencyApp()
 	client := ports.NewClient()
 
 	var wg sync.WaitGroup
@@ -30,25 +30,25 @@ func main() {
 
 		for i := 0; i < days; i++ {
 
-			currDate := dateutil.GetStringDate(date)
+			tempDate := dateutil.GetStringDate(date)
 
 			dateutil.DateDecrease(&date)
-			resp, err := client.GetWithParam(url, "date_req", currDate)
+			resp, err := client.GetWithParam(url, "date_req", tempDate)
 			if err != nil {
 				client.AddError(err)
 			}
-			byteValCurs, err := client.GetData(resp)
+			byteCurrRate, err := client.GetData(resp)
 			if err != nil {
 				client.AddError(err)
 			}
 
-			currValCurs, err := valuteApp.ParseValCurs(byteValCurs)
+			tempCurrRate, err := CurrencyApp.ParseCurrRate(byteCurrRate)
 
 			if err != nil {
-				valuteApp.AddError(err)
+				CurrencyApp.AddError(err)
 			}
 
-			valuteApp.AddValCurs(currValCurs)
+			CurrencyApp.AddCurrRate(tempCurrRate)
 
 			resp.Body.Close()
 		}
@@ -64,13 +64,13 @@ func main() {
 	}()
 	wg.Wait()
 
-	valuteApp.ProcessAll()
+	CurrencyApp.ProcessAll()
 
-	valuteApp.PrintMinCurs()
-	valuteApp.PrintMaxCurs()
-	valuteApp.PrintAvgCurs()
+	CurrencyApp.PrintMinRate()
+	CurrencyApp.PrintMaxRate()
+	CurrencyApp.PrintAvgRate()
 
 	fmt.Println(client.CheckErrors())
-	fmt.Println(valuteApp.CheckErrors())
+	fmt.Println(CurrencyApp.CheckErrors())
 
 }
