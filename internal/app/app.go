@@ -63,13 +63,12 @@ func (va *ValuteApp) AddError(err error) {
 	va.valuteErrors = append(va.valuteErrors, err.(ValuteError))
 }
 
-func (va *ValuteApp) parseCursVal(val string) (float32, error) {
+func (va *ValuteApp) parseCursVal(val string) (float64, error) {
 	strVal := strings.Replace(val, ",", ".", -1)
-	fVal64, err := strconv.ParseFloat(strVal, 32)
+	fVal, err := strconv.ParseFloat(strVal, 32)
 	if err != nil {
 		return 0, ValuteError{fmt.Errorf("error parsing float value from %s"+err.Error(), val)}
 	}
-	fVal := float32(fVal64)
 	return fVal, nil
 }
 func (va *ValuteApp) AddValCurs(curs valutes.ValCurs) {
@@ -91,67 +90,74 @@ func (va *ValuteApp) ParseValCurs(buf []byte) (valutes.ValCurs, error) {
 }
 
 func (va *ValuteApp) ProcessAll() {
+	err := va.processMinCurs()
+	if err != nil {
+		va.AddError(err)
+	}
+	err = va.processMaxCurs()
+	if err != nil {
+		va.AddError(err)
+	}
+	err = va.processAvgCurs()
+	if err != nil {
+		va.AddError(err)
+	}
+}
+
+func (va *ValuteApp) processMinCurs() error {
 	for _, curs := range va.valCurses {
 		for _, val := range curs.Valute {
-
-			err := va.processMinCurs(val.Name, val.Value, curs.Date)
+			fVal, err := va.parseCursVal(val.Value)
 			if err != nil {
-				va.AddError(err)
+				return err
 			}
-			err = va.processMaxCurs(val.Name, val.Value, curs.Date)
-			if err != nil {
-				va.AddError(err)
+			v, ok := va.minCurs[val.Name]
+			if !ok {
+				va.minCurs[val.Name] = valutes.MinMaxValute{Value: fVal, Date: curs.Date}
+			} else if fVal < v.Value {
+				va.minCurs[val.Name] = valutes.MinMaxValute{Value: fVal, Date: curs.Date}
 			}
-			err = va.processAvgCurs(val.Name, val.Value)
-			if err != nil {
-				va.AddError(err)
-			}
-
 		}
 	}
+
+	return nil
 }
 
-func (va *ValuteApp) processMinCurs(name string, val string, date string) error {
-
-	fVal, err := va.parseCursVal(val)
-	if err != nil {
-		return err
-	}
-	v, ok := va.minCurs[name]
-	if !ok {
-		va.minCurs[name] = valutes.MinMaxValute{Value: fVal, Date: date}
-	} else if fVal < v.Value {
-		va.minCurs[name] = valutes.MinMaxValute{Value: fVal, Date: date}
+func (va *ValuteApp) processMaxCurs() error {
+	for _, curs := range va.valCurses {
+		for _, val := range curs.Valute {
+			fVal, err := va.parseCursVal(val.Value)
+			if err != nil {
+				return err
+			}
+			v, ok := va.maxCurs[val.Name]
+			if !ok {
+				va.maxCurs[val.Name] = valutes.MinMaxValute{Value: fVal, Date: curs.Date}
+			} else if fVal < v.Value {
+				va.maxCurs[val.Name] = valutes.MinMaxValute{Value: fVal, Date: curs.Date}
+			}
+		}
 	}
 	return nil
 }
 
-func (va *ValuteApp) processMaxCurs(name string, val string, date string) error {
-
-	fVal, err := va.parseCursVal(val)
-	if err != nil {
-		return err
+func (va *ValuteApp) processAvgCurs() error {
+	for _, curs := range va.valCurses {
+		for _, val := range curs.Valute {
+			fVal, err := va.parseCursVal(val.Value)
+			if err != nil {
+				return err
+			}
+			v, ok := va.avgCurs[val.Name]
+			if !ok {
+				va.avgCurs[val.Name] = valutes.AvgValute{Sum: fVal, Quantity: 1}
+			} else if fVal < v.Value {
+				va.avgCurs[val.Name] = valutes.AvgValute{Sum: v.Sum + fVal, Quantity: v.Quantity + 1}
+			}
+		}
 	}
-	v, ok := va.maxCurs[name]
-	if !ok {
-		va.maxCurs[name] = valutes.MinMaxValute{Value: fVal, Date: date}
-	} else if fVal > v.Value {
-		va.maxCurs[name] = valutes.MinMaxValute{Value: fVal, Date: date}
-	}
-	return nil
-}
-
-func (va *ValuteApp) processAvgCurs(name string, val string) error {
-	fVal, err := va.parseCursVal(val)
-	if err != nil {
-		return ValuteError{err}
-	}
-	v, ok := va.avgCurs[name]
-	if !ok {
-		va.avgCurs[name] = valutes.AvgValute{Value: fVal, Quantity: 1}
-	} else {
-		newAvg := ((float32(v.Quantity) * v.Value) + fVal) / (float32(v.Quantity + 1))
-		va.avgCurs[name] = valutes.AvgValute{Value: newAvg, Quantity: v.Quantity + 1}
+	for k, v := range va.avgCurs {
+		va.avgCurs[k] = valutes.AvgValute{Sum: v.Sum, Quantity: v.Quantity, Value: v.Sum / float64(v.Quantity)}
 	}
 	return nil
 }
@@ -161,7 +167,7 @@ func (va *ValuteApp) PrintMinCurs() {
 		"ИМЯ ВАЛЮТЫ | ЗНАЧЕНИЕ | ДАТА")
 
 	for k, v := range va.minCurs {
-		fmt.Println(k, "|", v.Value, "|", v.Date)
+		fmt.Printf(" %s | %.2f | %s\n", k, v.Value, v.Date)
 	}
 
 	fmt.Println(line)
@@ -171,7 +177,7 @@ func (va *ValuteApp) PrintMaxCurs() {
 		"ИМЯ ВАЛЮТЫ | ЗНАЧЕНИЕ | ДАТА")
 
 	for k, v := range va.maxCurs {
-		fmt.Println(k, "|", v.Value, "|", v.Date)
+		fmt.Printf(" %s | %.2f | %s\n", k, v.Value, v.Date)
 	}
 	fmt.Println(line)
 }
@@ -180,7 +186,7 @@ func (va *ValuteApp) PrintAvgCurs() {
 		"ИМЯ ВАЛЮТЫ | ЗНАЧЕНИЕ")
 
 	for k, v := range va.avgCurs {
-		fmt.Println(k, "|", v.Value)
+		fmt.Printf(" %s | %.2f\n", k, v.Value)
 	}
 	fmt.Println(line)
 }

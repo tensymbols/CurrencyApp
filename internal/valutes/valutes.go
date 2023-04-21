@@ -1,11 +1,12 @@
 package valutes
 
 type MinMaxValute struct {
-	Value float32
+	Value float64
 	Date  string
 }
 type AvgValute struct {
-	Value    float32
+	Value    float64
+	Sum      float64
 	Quantity int
 }
 
